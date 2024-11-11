@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, url_for, session
 import numpy as np
 import matplotlib
+from scipy import stats
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -168,22 +169,37 @@ def hypothesis_test():
         observed_stat = intercept
         hypothesized_value = beta0
 
-    # TODO 10: Calculate p-value based on test type
-    p_value = None
+    print(test_type)
+    if test_type == ">":
+        p_value = np.mean(simulated_stats > observed_stat)
+        test_description = "Greater than (>)"
+    elif test_type == "<":
+        p_value = np.mean(simulated_stats < observed_stat)
+        test_description = "Less than (<)"
+    else:
+        p_value = 2 * np.mean(np.abs(simulated_stats - hypothesized_value) >= np.abs(observed_stat - hypothesized_value))
+        test_description = "Not equal to (≠)"
 
-    # TODO 11: If p_value is very small (e.g., <= 0.0001), set fun_message to a fun message
-    fun_message = None
+    fun_message = "Wow! This is a rare event!" if p_value <= 0.0001 else None
 
-    # TODO 12: Plot histogram of simulated statistics
-    plot3_path = "static/plot3.png"
-    # Replace with code to generate and save the plot
+    plt.figure(figsize=(10, 6))
+    plt.hist(simulated_stats, bins=30, alpha=0.7, label='Simulated Statistics')
+    plt.axvline(observed_stat, color='r', linestyle='--', label=f'Observed {parameter.capitalize()}: {observed_stat:.4f}')
+    plt.axvline(hypothesized_value, color='b', linestyle='-', label=f'Hypothesized {parameter.capitalize()} (H₀): {hypothesized_value:.4f}')
+    plt.title(f'Hypothesis Test for {parameter.capitalize()}')
+    plt.xlabel(parameter.capitalize())
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('static/plot3.png')
+    plt.close()
 
     # Return results to template
     return render_template(
         "index.html",
         plot1="static/plot1.png",
         plot2="static/plot2.png",
-        plot3=plot3_path,
+        plot3="static/plot3.png",
         parameter=parameter,
         observed_stat=observed_stat,
         hypothesized_value=hypothesized_value,
@@ -191,9 +207,8 @@ def hypothesis_test():
         beta0=beta0,
         beta1=beta1,
         S=S,
-        # TODO 13: Uncomment the following lines when implemented
-        # p_value=p_value,
-        # fun_message=fun_message,
+        p_value=p_value,
+        fun_message=fun_message,
     )
 
 @app.route("/confidence_interval", methods=["POST"])
@@ -225,31 +240,41 @@ def confidence_interval():
         observed_stat = intercept
         true_param = beta0
 
-    # TODO 14: Calculate mean and standard deviation of the estimates
-    mean_estimate = None
-    std_estimate = None
+    mean_estimate = np.mean(estimates)
+    std_estimate = np.std(estimates, ddof=1)
+        
+    alpha = 1 - confidence_level/100
+    t_value = stats.t.ppf(1 - alpha/2, len(estimates)-1)
+    
+    ci_lower = mean_estimate - t_value * std_estimate/np.sqrt(len(estimates))
+    ci_upper = mean_estimate + t_value * std_estimate/np.sqrt(len(estimates))
+    
+    includes_true = ci_lower <= true_param <= ci_upper
 
-    # TODO 15: Calculate confidence interval for the parameter estimate
-    # Use the t-distribution and confidence_level
-    ci_lower = None
-    ci_upper = None
-
-    # TODO 16: Check if confidence interval includes true parameter
-    includes_true = None
-
-    # TODO 17: Plot the individual estimates as gray points and confidence interval
-    # Plot the mean estimate as a colored point which changes if the true parameter is included
-    # Plot the confidence interval as a horizontal line
-    # Plot the true parameter value
-    plot4_path = "static/plot4.png"
-    # Write code here to generate and save the plot
+    plt.figure(figsize=(10, 6))
+    plt.scatter(estimates, [1]*len(estimates), alpha=0.5, color='gray', 
+            label='Simulated Estimates', s=30)
+    plt.scatter(mean_estimate, 1, color='blue', s=100, zorder=5,
+            label='Mean Estimate')
+    plt.hlines(y=1, xmin=ci_lower, xmax=ci_upper, color='blue', 
+            linewidth=2, label=f'{confidence_level}% Confidence Interval')
+    plt.axvline(true_param, color='green', linestyle='--', linewidth=2, 
+                label='True Slope')
+    plt.title(f'{confidence_level}% Confidence Interval for {parameter.capitalize()} (Mean Estimate)')
+    plt.xlabel(f'{parameter.capitalize()} Estimate')
+    plt.ylim(0.5, 1.5)
+    plt.yticks([])
+    plt.legend()
+    plt.grid(True, axis='x', alpha=0.3)
+    plt.savefig('static/plot4.png', bbox_inches='tight')
+    plt.close()
 
     # Return results to template
     return render_template(
         "index.html",
         plot1="static/plot1.png",
         plot2="static/plot2.png",
-        plot4=plot4_path,
+        plot4="static/plot4.png",
         parameter=parameter,
         confidence_level=confidence_level,
         mean_estimate=mean_estimate,
